@@ -19,7 +19,7 @@ include_directories(${absl_INCLUDE_DIRS})
 
 
 # Include source files
-add_executable(SERVER src/server.cpp src/chat.pb.cc)
+add_executable(SERVER src/server.cpp src/message.cpp src/chat.pb.cc)
 
 target_include_directories(${PROJECT_NAME}
     PRIVATE ${PROJECT_SOURCE_DIR}/include
