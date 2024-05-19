@@ -35,6 +35,29 @@ void broadcastMessage(const std::string& message, const std::string& userSender)
     }
 }
 
+void directMessage(const std::string& message, const std::string& userSender, const std::string& recipient) {
+    chat::Response response;
+    response.set_operation(chat::Operation::INCOMING_MESSAGE);
+    response.set_status_code(chat::StatusCode::OK);
+    auto *incomingMessage = response.mutable_incoming_message();
+    incomingMessage->set_content(message);
+    incomingMessage->set_type(chat::MessageType::DIRECT);
+    incomingMessage->set_sender(userSender);
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        if (userSockets.find(recipient) != userSockets.end()) {
+            if (!sendMessage(userSockets[recipient], response)) {
+                std::cerr << "Error sending direct message to client socket " << userSockets[recipient] << "\n";
+            }
+        } else {
+            response.set_message("Recipient not found");
+            if (!sendMessage(userSockets[userSender], response)) {
+                std::cerr << "Error sending response to client socket " << userSockets[userSender] << "\n";
+            }
+        }
+    }
+}
+
 void handleClient(int clientSocket) {
     std::string username;
     
@@ -71,9 +94,17 @@ void handleClient(int clientSocket) {
             close(clientSocket);
             break;
         } else if (request.operation() == chat::Operation::SEND_MESSAGE) {
-            std::string message = request.send_message().content();
-            std::cout << "Message received: " << "[" + username + "]" + ": " + message << "\n";
-            broadcastMessage(message, username);
+            if (request.send_message().recipient() == "") {
+                std::string message = request.send_message().content();
+                std::cout << "Message received: " << "[" + username + "]" + ": " + message << "\n";
+                broadcastMessage(message, username);
+            } else {
+                std::string recipient = request.send_message().recipient();
+                std::string message = request.send_message().content();
+                std::cout << "Direct message received: " << "[" + username + "]" + ": " + message << "\n";
+                directMessage(message, username, recipient);
+            }
+            
             continue;
         } else {
             std::cerr << "Unknown operation\n";

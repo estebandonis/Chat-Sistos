@@ -64,6 +64,25 @@ void sendMessageBroadcast(int clientSocket, const std::string& message) {
   sendMessage(clientSocket, request);
 }
 
+void sendMessageDirect(int clientSocket, const std::string& message) {
+  std::string recipient;
+  std::cout << "Enter recipient username: ";
+  std::cin >> recipient;
+  
+  std::string mensaje;
+  std::cout << "Enter message: ";
+  std::cin.ignore(); // Clear the newline character from the input buffer
+  std::getline(std::cin, mensaje);
+
+  chat::Request request;
+  request.set_operation(chat::Operation::SEND_MESSAGE);
+  auto *newMensaje = request.mutable_send_message();
+  newMensaje->set_content(mensaje);
+  newMensaje->set_recipient(recipient);
+
+  sendMessage(clientSocket, request);
+}
+
 int main(int argc, char* argv[]) {
   // Check the number of command-line arguments
   if (argc != 4) {
@@ -130,7 +149,7 @@ int main(int argc, char* argv[]) {
     std::cout << "(5) Desplegar información de un usuario en particular" << "\n";
     std::cout << "(6) Ayuda" << "\n";
     std::cout << "(7) Salir" << "\n";
-    std::cout << "Ingrese el número: ";
+    std::cout << "Ingrese el número: \n";
     std::cin >> choice;
 
     switch (choice)
@@ -139,7 +158,7 @@ int main(int argc, char* argv[]) {
         sendMessageBroadcast(clientSocket, userName);
         break;
     case 2:
-        std::cout << "opcion 2" << "\n";
+        sendMessageDirect(clientSocket, userName);
         break;
     case 3:
         std::cout << "opcion 3" << "\n";
