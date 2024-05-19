@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <thread>
 #include "./message.h"  // Replace with the path to your message_util.h
 #include "./chat.pb.h"       // Generated Protocol Buffers code
 
@@ -16,6 +17,14 @@ void messageReceiver(int clientSocket) {
       if (response.status_code() != chat::StatusCode::OK) {
         std::cerr << "Error receiving message from the server\n";
         break;
+      } else if (response.operation() == chat::Operation::INCOMING_MESSAGE) {
+        if (response.has_incoming_message()) {
+          std::string message;
+          const auto &mensaje = response.incoming_message();
+          std::string type = (mensaje.type() == chat::MessageType::BROADCAST) ? "Broadcast" : "Direct";
+          message = "<" + type + ">" + " [" + mensaje.sender() + "]" + ": " + mensaje.content();
+          std::cout << message << "\n";
+        }
       }
     } else {
       std::cout << response.operation() << std::endl;
@@ -39,6 +48,20 @@ void unregisterUser(int clientSocket, const std::string& userName) {
     std::cerr << "Connection closed." << std::endl;
   }
   std::cout << "Exiting..." << std::endl;
+}
+
+void sendMessageBroadcast(int clientSocket, const std::string& message) {
+  std::string mensaje;
+  std::cout << "Enter message to broadcast: ";
+  std::cin.ignore(); // Clear the newline character from the input buffer
+  std::getline(std::cin, mensaje);
+
+  chat::Request request;
+  request.set_operation(chat::Operation::SEND_MESSAGE);
+  auto *newMensaje = request.mutable_send_message();
+  newMensaje->set_content(mensaje);
+
+  sendMessage(clientSocket, request);
 }
 
 int main(int argc, char* argv[]) {
@@ -93,8 +116,8 @@ int main(int argc, char* argv[]) {
 
   std::cout << "Regreso del servidor: " << response.message();
 
-  // std::thread messageListener();
-  // messageListener.join();
+  std::thread receiver(messageReceiver, clientSocket);
+  receiver.detach();
 
   int choice = 0;
   while (choice != 7)
@@ -113,7 +136,7 @@ int main(int argc, char* argv[]) {
     switch (choice)
     {
     case 1:
-        std::cout << "opcion 1" << "\n";
+        sendMessageBroadcast(clientSocket, userName);
         break;
     case 2:
         std::cout << "opcion 2" << "\n";
@@ -135,12 +158,16 @@ int main(int argc, char* argv[]) {
         break;
     default:
         std::cout << "Opción no válida" << "\n";
-        close(clientSocket);
         break;
     }
   }
 
   std::cout << "Closing connection\n";
+
+  if (receiver.joinable())
+  {
+    receiver.join();
+  }
 
   close(clientSocket);
   return 0;

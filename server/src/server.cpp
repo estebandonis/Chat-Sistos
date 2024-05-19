@@ -1,8 +1,11 @@
 #include <iostream>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
-#include <thread>
 #include <vector>
+#include <deque>
+#include <thread>
+#include <mutex>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -10,36 +13,68 @@
 #include "message.h"  // Replace with the path to your message_util.h
 #include "chat.pb.h"  // Generated Protocol Buffers code
 
-std::unordered_set<std::string> connectedUsers;
 std::vector<std::thread> clientThreads;
+std::deque<std::string> messagesBroadcast;
+std::unordered_map<std::string, int> userSockets;
+std::mutex clientsMutex;
+
+void broadcastMessage(const std::string& message, const std::string& userSender) {
+    std::lock_guard<std::mutex> lock(clientsMutex);
+    std::cout << "Broadcasting message: " << message << "\n";
+    for (const auto& [username, clientSocket] : userSockets) {
+        chat::Response response;
+        response.set_operation(chat::Operation::INCOMING_MESSAGE);
+        response.set_status_code(chat::StatusCode::OK);
+        auto *incomingMessage = response.mutable_incoming_message();
+        incomingMessage->set_content(message);
+        incomingMessage->set_type(chat::MessageType::BROADCAST);
+        incomingMessage->set_sender(userSender);
+        if (!sendMessage(clientSocket, response)) {
+            std::cerr << "Error sending broadcast message to client socket " << clientSocket << "\n";
+        }
+    }
+}
 
 void handleClient(int clientSocket) {
+    std::string username;
+    
     while (true) {
         chat::Request request;
         if (!receiveMessage(clientSocket, request)) {
             std::cerr << "Error receiving request or client disconnected\n";
             close(clientSocket);
-            return;
+            break;
         }
 
         chat::Response response;
         if (request.operation() == chat::Operation::REGISTER_USER) {
-            std::string username = request.register_user().username();
-            connectedUsers.insert(username);
+            username = request.register_user().username();
+            {
+                std::lock_guard<std::mutex> lock(clientsMutex);
+                userSockets[username] = clientSocket;
+            }
             std::cout << "User registered: " << username << "\n";
 
-            for (const auto& user : connectedUsers) {
+            for (const auto& [user, clientSocket] : userSockets) {
                 std::cout << user << "\n";
             }
 
             response.set_message("User registered successfully");
         } else if (request.operation() == chat::Operation::UNREGISTER_USER) {
-            std::string username = request.unregister_user().username();
-            connectedUsers.erase(username);
+            username = request.unregister_user().username();
+            {
+                std::lock_guard<std::mutex> lock(clientsMutex);
+                userSockets.erase(username);
+            }
             std::cout << "User unregistered: " << username << "\n";
             response.set_message("User unregistered successfully");
             close(clientSocket);
-            return;
+            break;
+        } else if (request.operation() == chat::Operation::SEND_MESSAGE) {
+            std::string message = request.send_message().content();
+            std::cout << "Message received: " << "[" + username + "]" + ": " + message << "\n";
+            broadcastMessage(message, username);
+            continue;
         } else {
             std::cerr << "Unknown operation\n";
             response.set_message("Unknown operation");
@@ -48,8 +83,13 @@ void handleClient(int clientSocket) {
         if (!sendMessage(clientSocket, response)) {
             std::cerr << "Error sending response\n";
             close(clientSocket);
-            return;
+            break;
         }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        userSockets.erase(username);
     }
 }
 
