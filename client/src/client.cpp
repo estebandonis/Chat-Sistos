@@ -25,6 +25,17 @@ void messageReceiver(int clientSocket) {
           message = "<" + type + ">" + " [" + mensaje.sender() + "]" + ": " + mensaje.content();
           std::cout << message << "\n";
         }
+      } else if (response.operation() == chat::Operation::GET_USERS) {
+        const auto &user_list = response.user_list();
+        if (user_list.type() == chat::UserListType::SINGLE){
+          std::cout << "User info: " << "Username: " + user_list.users(0).username() << "\n";
+        } else if (user_list.type() == chat::UserListType::ALL){
+          std::cout << "Connected users: ";
+          for (const auto &user : response.user_list().users()) {
+            std::cout << user.username() << " ";
+          }
+          std::cout << "\n";
+        }
       }
     } else {
       std::cout << response.operation() << std::endl;
@@ -79,6 +90,27 @@ void sendMessageDirect(int clientSocket, const std::string& message) {
   auto *newMensaje = request.mutable_send_message();
   newMensaje->set_content(mensaje);
   newMensaje->set_recipient(recipient);
+
+  sendMessage(clientSocket, request);
+}
+
+void requestUsersList(int clientSocket) {
+  chat::Request request;
+  request.set_operation(chat::Operation::GET_USERS);
+  auto *userList = request.mutable_get_users();
+
+  sendMessage(clientSocket, request);
+}
+
+void requestUserInfo(int clientSocket) {
+  std::string userRequested;
+  std::cout << "Enter the username to get info: ";
+  std::cin >> userRequested;
+
+  chat::Request request;
+  request.set_operation(chat::Operation::GET_USERS);
+  auto *userInfo = request.mutable_get_users();
+  userInfo->set_username(userRequested);
 
   sendMessage(clientSocket, request);
 }
@@ -164,10 +196,10 @@ int main(int argc, char* argv[]) {
         std::cout << "opcion 3" << "\n";
         break;
     case 4:
-        std::cout << "opcion 4" << "\n";
+        requestUsersList(clientSocket);
         break;
     case 5:
-        std::cout << "opcion 5" << "\n";
+        requestUserInfo(clientSocket);
         break;
     case 6:
         std::cout << "opcion 6" << "\n";

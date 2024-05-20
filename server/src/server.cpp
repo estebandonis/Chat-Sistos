@@ -15,6 +15,7 @@
 
 std::vector<std::thread> clientThreads;
 std::deque<std::string> messagesBroadcast;
+std::unordered_map<std::string, chat::UserStatus> usersState;
 std::unordered_map<std::string, int> userSockets;
 std::mutex clientsMutex;
 
@@ -58,6 +59,48 @@ void directMessage(const std::string& message, const std::string& userSender, co
     }
 }
 
+void returnAllUsers(int clientSocket) {
+    chat::Response response;
+    response.set_operation(chat::Operation::GET_USERS);
+    response.set_status_code(chat::StatusCode::OK);
+
+    chat::UserListResponse user_list;
+    user_list.set_type(chat::UserListType::ALL);
+    for (const auto& [user, state] : usersState){
+        chat::User *newUser = user_list.add_users();
+        newUser->set_username(user);
+        newUser->set_status(state);
+    }
+
+    std::cout << "All users fetched successfully." << "\n";
+
+    response.mutable_user_list()->CopyFrom(user_list);
+
+    if (!sendMessage(clientSocket, response)) {
+        std::cerr << "Error sending users list to client socket " << clientSocket << "\n";
+    }
+}
+
+void returnUserInfo(int clientSocket, const std::string& username) {
+    chat::Response response;
+    response.set_operation(chat::Operation::GET_USERS);
+    response.set_status_code(chat::StatusCode::OK);
+
+    chat::UserListResponse user_list;
+    user_list.set_type(chat::UserListType::SINGLE);
+    chat::User *newUser = user_list.add_users();
+    newUser->set_username(username);
+    newUser->set_status(usersState[username]);
+
+    std::cout << "User info fetched successfully." << "\n";
+
+    response.mutable_user_list()->CopyFrom(user_list);
+
+    if (!sendMessage(clientSocket, response)) {
+        std::cerr << "Error sending user info to client socket " << clientSocket << "\n";
+    }
+}
+
 void handleClient(int clientSocket) {
     std::string username;
     
@@ -74,6 +117,7 @@ void handleClient(int clientSocket) {
             username = request.register_user().username();
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
+                usersState[username] = chat::UserStatus::ONLINE;
                 userSockets[username] = clientSocket;
             }
             std::cout << "User registered: " << username << "\n";
@@ -87,6 +131,8 @@ void handleClient(int clientSocket) {
             username = request.unregister_user().username();
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
+                std::string usernameToDelete = "username"; // replace "username" with the actual username
+                usersState.erase(username);
                 userSockets.erase(username);
             }
             std::cout << "User unregistered: " << username << "\n";
@@ -103,6 +149,14 @@ void handleClient(int clientSocket) {
                 std::string message = request.send_message().content();
                 std::cout << "Direct message received: " << "[" + username + "]" + ": " + message << "\n";
                 directMessage(message, username, recipient);
+            }
+            
+            continue;
+        } else if (request.operation() == chat::Operation::GET_USERS){
+            if (request.get_users().username().empty()) {
+                returnAllUsers(clientSocket);
+            } else {
+                returnUserInfo(clientSocket, request.get_users().username());
             }
             
             continue;
