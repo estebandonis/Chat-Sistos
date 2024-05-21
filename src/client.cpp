@@ -1,12 +1,13 @@
 #include <iostream>
 #include <string>
+#include <deque>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <thread>
-#include "./message.h"  // Replace with the path to your message_util.h
-#include "./chat.pb.h"       // Generated Protocol Buffers code
+#include "protocol/message.h"  // Replace with the path to your message_util.h
+#include "protocol/chat.pb.h"       // Generated Protocol Buffers code
 
 std::deque<std::string> messages;
 

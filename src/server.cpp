@@ -10,8 +10,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include "message.h"  // Replace with the path to your message_util.h
-#include "chat.pb.h"  // Generated Protocol Buffers code
+#include "protocol/message.h"  // Replace with the path to your message_util.h
+#include "protocol/chat.pb.h"  // Generated Protocol Buffers code
 
 std::vector<std::thread> clientThreads;
 std::deque<std::string> messagesBroadcast;

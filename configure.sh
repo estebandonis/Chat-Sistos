@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/bin/sh
 
 cmake -S . -B build
 
