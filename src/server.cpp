@@ -17,6 +17,7 @@ std::vector<std::thread> clientThreads;
 std::deque<std::string> messagesBroadcast;
 std::unordered_map<std::string, chat::UserStatus> usersState;
 std::unordered_map<std::string, int> userSockets;
+std::unordered_map<std::string, std::string> ipsUsers;
 std::mutex clientsMutex;
 
 void broadcastMessage(const std::string& message, const std::string& userSender) {
@@ -89,7 +90,7 @@ void returnUserInfo(int clientSocket, const std::string& username) {
     chat::UserListResponse user_list;
     user_list.set_type(chat::UserListType::SINGLE);
     chat::User *newUser = user_list.add_users();
-    newUser->set_username(username);
+    newUser->set_username(username + " (IP: " + ipsUsers[username] + ")");
     newUser->set_status(usersState[username]);
 
     std::cout << "User info fetched successfully." << "\n";
@@ -101,7 +102,7 @@ void returnUserInfo(int clientSocket, const std::string& username) {
     }
 }
 
-void handleClient(int clientSocket) {
+void handleClient(int clientSocket, const std::string& clientIp) {
     std::string username;
     
     while (true) {
@@ -117,6 +118,19 @@ void handleClient(int clientSocket) {
             username = request.register_user().username();
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
+                if (usersState.find(username) != usersState.end()) {
+                    std::cout << "Username already taken\n";
+                    response.set_message("Username already taken");
+                    response.set_status_code(chat::StatusCode::INTERNAL_SERVER_ERROR);
+                    if (!sendMessage(clientSocket, response)) {
+                        std::cerr << "Error sending response\n";
+                        close(clientSocket);
+                        break;
+                    }
+                    close(clientSocket);
+                    break;
+                }
+                ipsUsers[username] = clientIp;
                 usersState[username] = chat::UserStatus::ONLINE;
                 userSockets[username] = clientSocket;
             }
@@ -127,6 +141,7 @@ void handleClient(int clientSocket) {
             }
 
             response.set_message("User registered successfully");
+            response.set_status_code(chat::StatusCode::OK);
         } else if (request.operation() == chat::Operation::UNREGISTER_USER) {
             username = request.unregister_user().username();
             {
@@ -213,14 +228,15 @@ int main(int argc, char* argv[]) {
     while (true) {
         sockaddr_in clientAddress{};
         socklen_t clientAddressLength = sizeof(clientAddress);
+        std::string ipAddress = inet_ntoa(clientAddress.sin_addr);
+        std::cout << "Client IP: " << ipAddress << "\n";
         int clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddress, &clientAddressLength);
         if (clientSocket < 0) {
             std::cerr << "Error accepting client connection: " << strerror(errno) << "\n";
             continue;
         }
 
-        std::cout << "Client connected\n";
-        clientThreads.emplace_back(std::thread(handleClient, clientSocket));
+        clientThreads.emplace_back(std::thread(handleClient, clientSocket, ipAddress));
     }
 
     for (auto& thread : clientThreads) {

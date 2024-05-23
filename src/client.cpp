@@ -29,7 +29,7 @@ void messageReceiver(int clientSocket) {
       } else if (response.operation() == chat::Operation::GET_USERS) {
         const auto &user_list = response.user_list();
         if (user_list.type() == chat::UserListType::SINGLE){
-          std::cout << "User info: " << "Username: " + user_list.users(0).username() << "\n";
+          std::cout << "User info: \n" << "Username: " + user_list.users(0).username() << "\n";
         } else if (user_list.type() == chat::UserListType::ALL){
           std::cout << "Connected users: ";
           for (const auto &user : response.user_list().users()) {
@@ -158,8 +158,13 @@ int main(int argc, char* argv[]) {
   std::cout << "Request sent to the server\n";
 
   chat::Response response;
-  if (receiveMessage(clientSocket, response)) {
+  if (receiveMessage(clientSocket, response)){
     std::cout << "Received message from server - Type: " << response.message() << std::endl;
+    if (response.status_code() == chat::StatusCode::INTERNAL_SERVER_ERROR){
+      std::cerr << "Error registering user: " << response.message() << "\n";
+      close(clientSocket);
+      return -1;
+    }
   } else {
     std::cerr << "Error receiving message from the server\n";
     close(clientSocket);
