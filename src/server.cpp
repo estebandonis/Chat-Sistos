@@ -102,6 +102,28 @@ void returnUserInfo(int clientSocket, const std::string& username) {
     }
 }
 
+void changeStatus (int clientSocket, chat::UserStatus status){
+    std::string userToChange;
+    for (const auto& [username, socket] : userSockets) {
+        if (socket == clientSocket) {
+            userToChange = username;
+            break;
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        usersState[userToChange] = status;
+    }
+
+    chat::Response response;
+    response.set_operation(chat::Operation::UPDATE_STATUS);
+    response.set_status_code(chat::StatusCode::OK);
+    response.set_message("Status updated successfully");
+
+    sendMessage(clientSocket, response);
+}
+
 void handleClient(int clientSocket, const std::string& clientIp) {
     std::string username;
     
@@ -113,8 +135,8 @@ void handleClient(int clientSocket, const std::string& clientIp) {
             break;
         }
 
-        chat::Response response;
         if (request.operation() == chat::Operation::REGISTER_USER) {
+            chat::Response response;
             username = request.register_user().username();
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
@@ -142,7 +164,13 @@ void handleClient(int clientSocket, const std::string& clientIp) {
 
             response.set_message("User registered successfully");
             response.set_status_code(chat::StatusCode::OK);
+
+            if (!sendMessage(clientSocket, response)) {
+                std::cerr << "Error sending user info to client socket " << clientSocket << "\n";
+            }
         } else if (request.operation() == chat::Operation::UNREGISTER_USER) {
+            chat::Response response;
+            response.set_operation(chat::Operation::UNREGISTER_USER);
             username = request.unregister_user().username();
             {
                 std::lock_guard<std::mutex> lock(clientsMutex);
@@ -152,6 +180,11 @@ void handleClient(int clientSocket, const std::string& clientIp) {
             }
             std::cout << "User unregistered: " << username << "\n";
             response.set_message("User unregistered successfully");
+            response.set_status_code(chat::StatusCode::OK);
+
+            if (!sendMessage(clientSocket, response)) {
+                std::cerr << "Error sending response\n";
+            }
             close(clientSocket);
             break;
         } else if (request.operation() == chat::Operation::SEND_MESSAGE) {
@@ -175,15 +208,14 @@ void handleClient(int clientSocket, const std::string& clientIp) {
             }
             
             continue;
+        } else if (request.operation() == chat::Operation::UPDATE_STATUS) {
+            auto status_request = request.update_status();
+            changeStatus(clientSocket, status_request.new_status());
         } else {
+            chat::Response response;
             std::cerr << "Unknown operation\n";
+            response.set_status_code(chat::StatusCode::BAD_REQUEST);
             response.set_message("Unknown operation");
-        }
-
-        if (!sendMessage(clientSocket, response)) {
-            std::cerr << "Error sending response\n";
-            close(clientSocket);
-            break;
         }
     }
 

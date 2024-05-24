@@ -6,18 +6,22 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <thread>
+#include <atomic>
 #include "protocol/message.h"  
 #include "protocol/chat.pb.h"    
 
 std::deque<std::string> messages;
+std::atomic<bool> receivingResponse{true};
 std::unordered_map<std::string, std::deque<std::string>> privateMessages;
 
 void messageReceiver(int clientSocket) {
-  while (true) {
+  while (receivingResponse == true) {
     chat::Response response;
     if (receiveMessage(clientSocket, response)) {
       if (response.status_code() != chat::StatusCode::OK) {
         std::cerr << "Error receiving message from the server\n";
+        std::cerr << "Status code: " << response.status_code() << "\n";
+        std::cerr << "Message: " << response.message() << "\n";
         break;
       } else if (response.operation() == chat::Operation::INCOMING_MESSAGE) {
         if (response.has_incoming_message()) {
@@ -36,17 +40,35 @@ void messageReceiver(int clientSocket) {
       } else if (response.operation() == chat::Operation::GET_USERS) {
         const auto &user_list = response.user_list();
         if (user_list.type() == chat::UserListType::SINGLE){
-          std::cout << "User info: \n" << "Username: " + user_list.users(0).username() << "\n";
+          std::string tempStatus;
+          if (user_list.users(0).status() == chat::UserStatus::ONLINE){
+            tempStatus = "Online";
+          } else if (user_list.users(0).status() == chat::UserStatus::BUSY){
+            tempStatus = "Busy";
+          } else {
+            tempStatus = "Offline";
+          }
+          std::cout << "User info: \n" << "Username: " + user_list.users(0).username() << "\n" << "Status: " << tempStatus << "\n";
+
         } else if (user_list.type() == chat::UserListType::ALL){
-          std::cout << "Connected users: ";
+          std::cout << "Connected users: " << "\n";
           for (const auto &user : response.user_list().users()) {
-            std::cout << user.username() << " ";
+            std::string tempStatus;
+            if (user.status() == chat::UserStatus::ONLINE){
+              tempStatus = "Online";
+            } else if (user.status() == chat::UserStatus::BUSY){
+              tempStatus = "Busy";
+            } else {
+              tempStatus = "Offline";
+            }
+
+            std::cout << "Username: " << user.username() << "\n" << "Status: " << tempStatus << "\n";
           }
           std::cout << "\n";
         }
+      } else if (response.operation() == chat::Operation::UPDATE_STATUS) {
+        std::cout << "Update Status" << response.message() << "\n";
       }
-    } else {
-      std::cout << response.operation() << std::endl;
     }
   }
 }
@@ -76,21 +98,13 @@ void DirectMessagesPrinter(){
 }
 
 void unregisterUser(int clientSocket, const std::string& userName) {
+  receivingResponse = false;
   chat::Request request;
   request.set_operation(chat::Operation::UNREGISTER_USER);
   auto *unregisterUser = request.mutable_unregister_user();
   unregisterUser->set_username(userName);
 
   sendMessage(clientSocket, request);
-
-  chat::Response response;
-  if (receiveMessage(clientSocket, response))
-  {
-    std::cout << "Server response: " << response.message() << std::endl;
-  } else {
-    std::cerr << "Connection closed." << std::endl;
-  }
-  std::cout << "Exiting..." << std::endl;
 }
 
 void sendMessageBroadcast(int clientSocket, const std::string& message) {
@@ -147,6 +161,21 @@ void requestUserInfo(int clientSocket) {
   request.set_operation(chat::Operation::GET_USERS);
   auto *userInfo = request.mutable_get_users();
   userInfo->set_username(userRequested);
+
+  sendMessage(clientSocket, request);
+}
+
+void changeStatus(int clientSocket, int status) {
+  chat::Request request;
+  request.set_operation(chat::Operation::UPDATE_STATUS);
+  auto *status_request = request.mutable_update_status();
+  if (status == 0){
+    status_request->set_new_status(chat::UserStatus::ONLINE);
+  } else if (status == 1){
+    status_request->set_new_status(chat::UserStatus::BUSY);
+  } else {
+    status_request->set_new_status(chat::UserStatus::OFFLINE);
+  }
 
   sendMessage(clientSocket, request);
 }
@@ -242,7 +271,13 @@ int main(int argc, char* argv[]) {
         DirectMessagesPrinter();
         break;
     case 5:
-        std::cout << "Cambio de estado" << "\n";
+        int status;
+        std::cout << "Ingrese el status deseado: " << "\n";
+        std::cout << "(0) Online" << "\n";
+        std::cout << "(1) Busy" << "\n";
+        std::cout << "(2) Offline" << "\n";
+        std::cin >> status;
+        changeStatus(clientSocket, status);
         break;
     case 6:
         requestUsersList(clientSocket);
@@ -255,6 +290,10 @@ int main(int argc, char* argv[]) {
         break;
     case 9:
         unregisterUser(clientSocket, userName);
+        if (receiveMessage(clientSocket, response))
+        {
+          std::cout << "Servidor: " << response.message() << std::endl;
+        }
         break;
     default:
         std::cout << "Opción no válida" << "\n";
