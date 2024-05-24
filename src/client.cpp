@@ -6,10 +6,11 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <thread>
-#include "protocol/message.h"  // Replace with the path to your message_util.h
-#include "protocol/chat.pb.h"       // Generated Protocol Buffers code
+#include "protocol/message.h"  
+#include "protocol/chat.pb.h"    
 
 std::deque<std::string> messages;
+std::unordered_map<std::string, std::deque<std::string>> privateMessages;
 
 void messageReceiver(int clientSocket) {
   while (true) {
@@ -22,9 +23,15 @@ void messageReceiver(int clientSocket) {
         if (response.has_incoming_message()) {
           std::string message;
           const auto &mensaje = response.incoming_message();
-          std::string type = (mensaje.type() == chat::MessageType::BROADCAST) ? "Broadcast" : "Direct";
-          message = "<" + type + ">" + " [" + mensaje.sender() + "]" + ": " + mensaje.content();
-          std::cout << message << "\n";
+          if (mensaje.type() == chat::MessageType::BROADCAST){
+            std::string type = "Broadcast";
+            message = "<" + type + ">" + " [" + mensaje.sender() + "]" + ": " + mensaje.content();
+            messages.push_back(message);
+          } else {
+            std::string type = "Direct";
+            message = "<" + type + ">" + " [" + mensaje.sender() + "]" + ": " + mensaje.content();
+            privateMessages[mensaje.sender()].push_back(message);
+          }
         }
       } else if (response.operation() == chat::Operation::GET_USERS) {
         const auto &user_list = response.user_list();
@@ -42,6 +49,30 @@ void messageReceiver(int clientSocket) {
       std::cout << response.operation() << std::endl;
     }
   }
+}
+
+void BroadcastMessagesPrinter(){
+  std::cout << "***********************************" << "\n";
+  std::cout << "Broadcast Messages: " << "\n";
+  std::cout << "***********************************" << "\n";
+  for (const auto& message : messages) {
+    std::cout << message << "\n";
+  }
+  std::cout << "***********************************" << "\n\n";
+}
+
+void DirectMessagesPrinter(){
+  std::cout << "***********************************" << "\n";
+  std::cout << "Direct Messages: " << "\n";
+  std::cout << "***********************************" << "\n";
+  for (const auto& [sender, messages] : privateMessages) {
+    std::cout << "Messages from " << sender << ": " << "\n";
+    for (const auto& message : messages) {
+      std::cout << message << "\n";
+    }
+    std::cout << "\n";
+  }
+  std::cout << "***********************************" << "\n\n";
 }
 
 void unregisterUser(int clientSocket, const std::string& userName) {
@@ -65,7 +96,7 @@ void unregisterUser(int clientSocket, const std::string& userName) {
 void sendMessageBroadcast(int clientSocket, const std::string& message) {
   std::string mensaje;
   std::cout << "Enter message to broadcast: ";
-  std::cin.ignore(); // Clear the newline character from the input buffer
+  std::cin.ignore();
   std::getline(std::cin, mensaje);
 
   chat::Request request;
@@ -76,14 +107,14 @@ void sendMessageBroadcast(int clientSocket, const std::string& message) {
   sendMessage(clientSocket, request);
 }
 
-void sendMessageDirect(int clientSocket, const std::string& message) {
+void sendMessageDirect(int clientSocket, const std::string& userName) {
   std::string recipient;
   std::cout << "Enter recipient username: ";
   std::cin >> recipient;
   
   std::string mensaje;
   std::cout << "Enter message: ";
-  std::cin.ignore(); // Clear the newline character from the input buffer
+  std::cin.ignore();
   std::getline(std::cin, mensaje);
 
   chat::Request request;
@@ -91,6 +122,10 @@ void sendMessageDirect(int clientSocket, const std::string& message) {
   auto *newMensaje = request.mutable_send_message();
   newMensaje->set_content(mensaje);
   newMensaje->set_recipient(recipient);
+  std::string type = "Direct";
+  std::string tempMessage;
+  tempMessage = "<" + type + ">" + " [" + userName + "]" + ": " + mensaje;
+  privateMessages[recipient].push_back(tempMessage);
 
   sendMessage(clientSocket, request);
 }
@@ -177,16 +212,18 @@ int main(int argc, char* argv[]) {
   receiver.detach();
 
   int choice = 0;
-  while (choice != 7)
+  while (choice != 9)
   {
     std::cout << "Ingrese un número basándose en las opciones siguientes" << "\n";
     std::cout << "(1) Chatear con todos los usuarios" << "\n";
-    std::cout << "(2) Enviar y recibir mensajes directos, privados, aparte del chat general" << "\n";
-    std::cout << "(3) Cambiar de status" << "\n";
-    std::cout << "(4) Listar los usuarios conectados al sistema de chat" << "\n";
-    std::cout << "(5) Desplegar información de un usuario en particular" << "\n";
-    std::cout << "(6) Ayuda" << "\n";
-    std::cout << "(7) Salir" << "\n";
+    std::cout << "(2) Mostrar mensajes Broadcast" << "\n";
+    std::cout << "(3) Enviar y recibir mensajes directos, privados, aparte del chat general" << "\n";
+    std::cout << "(4) Mostrar mensajes Directos" << "\n";
+    std::cout << "(5) Cambiar de status" << "\n";
+    std::cout << "(6) Listar los usuarios conectados al sistema de chat" << "\n";
+    std::cout << "(7) Desplegar información de un usuario en particular" << "\n";
+    std::cout << "(8) Ayuda" << "\n";
+    std::cout << "(9) Salir" << "\n";
     std::cout << "Ingrese el número: \n";
     std::cin >> choice;
 
@@ -196,21 +233,27 @@ int main(int argc, char* argv[]) {
         sendMessageBroadcast(clientSocket, userName);
         break;
     case 2:
-        sendMessageDirect(clientSocket, userName);
+        BroadcastMessagesPrinter();
         break;
     case 3:
-        std::cout << "opcion 3" << "\n";
+        sendMessageDirect(clientSocket, userName);
         break;
     case 4:
-        requestUsersList(clientSocket);
+        DirectMessagesPrinter();
         break;
     case 5:
-        requestUserInfo(clientSocket);
+        std::cout << "Cambio de estado" << "\n";
         break;
     case 6:
-        std::cout << "opcion 6" << "\n";
+        requestUsersList(clientSocket);
         break;
     case 7:
+        requestUserInfo(clientSocket);
+        break;
+    case 8:
+        std::cout << "Ayuda" << "\n";
+        break;
+    case 9:
         unregisterUser(clientSocket, userName);
         break;
     default:
