@@ -13,6 +13,7 @@
 std::deque<std::string> messages; // Cola para ir guardando los mensajes broadcast
 std::atomic<bool> receivingResponse{true}; // Variable que detemina si se sigue recibiendo responses del servidor
 std::unordered_map<std::string, std::deque<std::string>> privateMessages; // Mapa para guardar los mensajes privados
+std::mutex messagesMutex; // Mutex para evitar problemas de concurrencia en la cola de mensajes
 
 /**
  * Escucha los responses del servidor
@@ -56,7 +57,7 @@ void messageReceiver(int clientSocket) {
             message = "<" + type + ">" + " [" + mensaje.sender() + "]" + ": " + mensaje.content();
             // Se guarda el mensaje en el mapa de mensajes privados, utilizando un mutex lock para evitar problemas de concurrencia
             {
-              std::lock_guard<std::mutex> lock(privateMessagesMutex);
+              std::lock_guard<std::mutex> lock(messagesMutex);
               privateMessages[mensaje.sender()].push_back(message);
             }
           }
@@ -158,6 +159,12 @@ void unregisterUser(int clientSocket, const std::string& userName) {
 
   // Se envia el request al servidor
   sendMessage(clientSocket, request);
+
+  // Se espera el mensaje de respuesta del servidor
+  chat::Response response;
+  if (receiveMessage(clientSocket, response)){
+    std::cout << "Servidor: " << response.message() << std::endl;
+  }
 }
 
 /**
@@ -216,25 +223,6 @@ void sendMessageDirect(int clientSocket, const std::string& userName) {
 
   // Se envia el request al servidor
   sendMessage(clientSocket, request);
-
-  // Se crea un objeto de tipo chat::Response para esperar la respuesta del servidor
-  chat::Response response;
-  // Si se recibe un mensaje del servidor
-  if (receiveMessage(clientSocket, response)){
-    // Y si el status code de la respuesta es OK
-    if (response.status_code() == chat::StatusCode::OK){
-      // Se guarda el mensaje en el mapa de mensajes privados
-      std::string type = "Direct";
-      std::string tempMessage;
-      tempMessage = "<" + type + ">" + " [" + userName + "]" + ": " + mensaje;
-      {
-        std::lock_guard<std::mutex> lock(privateMessagesMutex);
-        privateMessages[recipient].push_back(tempMessage);
-      }
-    } else {
-      std::cerr << "Error sending message: " << response.message() << "\n";
-    }
-  }
 }
 
 /**
@@ -389,7 +377,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Ingrese un número basándose en las opciones siguientes" << "\n";
     std::cout << "(1) Chatear con todos los usuarios" << "\n";
     std::cout << "(2) Mostrar mensajes Broadcast" << "\n";
-    std::cout << "(3) Enviar y recibir mensajes directos, privados, aparte del chat general" << "\n";
+    std::cout << "(3) Enviar mensajes directos, privados, aparte del chat general" << "\n";
     std::cout << "(4) Mostrar mensajes Directos" << "\n";
     std::cout << "(5) Cambiar de status" << "\n";
     std::cout << "(6) Listar los usuarios conectados al sistema de chat" << "\n";
@@ -444,14 +432,8 @@ int main(int argc, char* argv[]) {
     case 9:
         // En caso de que la eleccion sea 9, se desregistra al usuario
         unregisterUser(clientSocket, userName);
-        // Se espera el mensaje de respuesta del servidor
-        chat::Response response;
-        if (receiveMessage(clientSocket, response)){
-          std::cout << "Servidor: " << response.message() << std::endl;
-        }
         break;
     default:
-        // En caso de que la eleccion no sea valida, se imprime un mensaje de error
         std::cout << "Opción no válida" << "\n";
         break;
     }
