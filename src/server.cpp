@@ -38,20 +38,23 @@ void broadcastMessage(const std::string& message, const std::string& userSender)
 }
 
 void directMessage(const std::string& message, const std::string& userSender, const std::string& recipient) {
-    chat::Response response;
-    response.set_operation(chat::Operation::INCOMING_MESSAGE);
-    response.set_status_code(chat::StatusCode::OK);
-    auto *incomingMessage = response.mutable_incoming_message();
-    incomingMessage->set_content(message);
-    incomingMessage->set_type(chat::MessageType::DIRECT);
-    incomingMessage->set_sender(userSender);
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
         if (userSockets.find(recipient) != userSockets.end()) {
+            chat::Response response;
+            response.set_operation(chat::Operation::INCOMING_MESSAGE);
+            response.set_status_code(chat::StatusCode::OK);
+            auto *incomingMessage = response.mutable_incoming_message();
+            incomingMessage->set_content(message);
+            incomingMessage->set_type(chat::MessageType::DIRECT);
+            incomingMessage->set_sender(userSender);
             if (!sendMessage(userSockets[recipient], response)) {
                 std::cerr << "Error sending direct message to client socket " << userSockets[recipient] << "\n";
             }
         } else {
+            chat::Response response;
+            response.set_operation(chat::Operation::INCOMING_MESSAGE);
+            response.set_status_code(chat::StatusCode::INTERNAL_SERVER_ERROR);
             response.set_message("Recipient not found");
             if (!sendMessage(userSockets[userSender], response)) {
                 std::cerr << "Error sending response to client socket " << userSockets[userSender] << "\n";
@@ -83,22 +86,33 @@ void returnAllUsers(int clientSocket) {
 }
 
 void returnUserInfo(int clientSocket, const std::string& username) {
-    chat::Response response;
-    response.set_operation(chat::Operation::GET_USERS);
-    response.set_status_code(chat::StatusCode::OK);
+    if (userSockets.find(username) == userSockets.end()) {
+        chat::Response response;
+        response.set_operation(chat::Operation::GET_USERS);
+        response.set_status_code(chat::StatusCode::INTERNAL_SERVER_ERROR);
+        response.set_message("User not found");
 
-    chat::UserListResponse user_list;
-    user_list.set_type(chat::UserListType::SINGLE);
-    chat::User *newUser = user_list.add_users();
-    newUser->set_username(username + " (IP: " + ipsUsers[username] + ")");
-    newUser->set_status(usersState[username]);
+        if (!sendMessage(clientSocket, response)) {
+            std::cerr << "Error sending user info to client socket " << clientSocket << "\n";
+        }
+    } else {
+        chat::Response response;
+        response.set_operation(chat::Operation::GET_USERS);
+        response.set_status_code(chat::StatusCode::OK);
 
-    std::cout << "User info fetched successfully." << "\n";
+        chat::UserListResponse user_list;
+        user_list.set_type(chat::UserListType::SINGLE);
+        chat::User *newUser = user_list.add_users();
+        newUser->set_username(username + " (IP: " + ipsUsers[username] + ")");
+        newUser->set_status(usersState[username]);
 
-    response.mutable_user_list()->CopyFrom(user_list);
+        std::cout << "User info fetched successfully." << "\n";
 
-    if (!sendMessage(clientSocket, response)) {
-        std::cerr << "Error sending user info to client socket " << clientSocket << "\n";
+        response.mutable_user_list()->CopyFrom(user_list);
+
+        if (!sendMessage(clientSocket, response)) {
+            std::cerr << "Error sending user info to client socket " << clientSocket << "\n";
+        }
     }
 }
 
@@ -221,7 +235,9 @@ void handleClient(int clientSocket, const std::string& clientIp) {
 
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
+        usersState.erase(username);
         userSockets.erase(username);
+        ipsUsers.erase(username);
     }
 }
 
