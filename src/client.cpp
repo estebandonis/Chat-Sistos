@@ -15,7 +15,7 @@ std::atomic<bool> receivingResponse{true}; // Variable que detemina si se sigue 
 std::unordered_map<std::string, std::deque<std::string>> privateMessages; // Mapa para guardar los mensajes privados
 std::mutex messagesMutex; // Mutex para evitar problemas de concurrencia en la cola de mensajes
 std::string currentStatus = "ONLINE"; // Variable para guardar el status actual del usuario
-std::string tempUserStatus;
+std::string tempUserStatus = "";
 std::string tempMessage;
 std::string tempRecipient;
 
@@ -76,11 +76,11 @@ void messageReceiver(int clientSocket) {
             // Si es asi se obtiene el status del usuario, y se coloca de manera adecuada para su impresion
             std::string tempStatus;
             if (user_list.users(0).status() == chat::UserStatus::ONLINE){
-              tempStatus = "Online";
+              tempStatus = "ONLINE";
             } else if (user_list.users(0).status() == chat::UserStatus::BUSY){
-              tempStatus = "Busy";
+              tempStatus = "BUSY";
             } else {
-              tempStatus = "Offline";
+              tempStatus = "OFFLINE";
             }
             // Se imprime la informacion del usuario
             std::cout << "User info: \n" << "Username: " + user_list.users(0).username() << "\n" << "Status: " << tempStatus << "\n";
@@ -93,11 +93,11 @@ void messageReceiver(int clientSocket) {
             for (const auto &user : response.user_list().users()) {
               std::string tempStatus;
               if (user.status() == chat::UserStatus::ONLINE){
-                tempStatus = "Online";
+                tempStatus = "ONLINE";
               } else if (user.status() == chat::UserStatus::BUSY){
-                tempStatus = "Busy";
+                tempStatus = "BUSY";
               } else {
-                tempStatus = "Offline";
+                tempStatus = "OFFLINE";
               }
               // Se imprime la informacion del usuario
               std::cout << "Username: " << user.username() << "\n" << "Status: " << tempStatus << "\n";
@@ -108,10 +108,18 @@ void messageReceiver(int clientSocket) {
         // Si la operacion es de tipo update status
         else if (response.operation() == chat::Operation::UPDATE_STATUS) {
           // Se imprime el mensaje del servidor
-          std::cout << "Status updated to: " << tempUserStatus << "\n";
           {
             std::lock_guard<std::mutex> lock(messagesMutex);
-            currentStatus = tempUserStatus;
+            if (tempUserStatus == ""){
+              if (currentStatus == "OFFLINE"){
+                currentStatus = "ONLINE";
+              } else {
+                currentStatus = "OFFLINE";
+              }
+            } else {
+              currentStatus = tempUserStatus;
+              tempUserStatus = "";
+            }
           }
           std::cout << response.message() << "\n";
         } else if (response.operation() == chat::Operation::SEND_MESSAGE) {

@@ -19,6 +19,8 @@ std::unordered_map<std::string, chat::UserStatus> usersState; // Variable donde 
 std::unordered_map<std::string, int> userSockets; // Variable donde almacenamos los sockets de los usuarios
 std::unordered_map<std::string, std::string> ipsUsers; // Variable donde almacenamos las ips de los usuarios
 std::mutex clientsMutex; // Mutex para proteger las variables compartidas
+std::unordered_map<std::string, int> usersTiming; // Variable donde almacenamos el tiempo de inactividad de los usuarios
+int waitTime = 20; // Variable donde se guarda el tiempo de inactividad predeterminado
 
 /**
  * Funcion que maneja el envío de mensajes broadcast a través de un socket
@@ -215,33 +217,20 @@ void changeStatus (int clientSocket, chat::UserStatus status){
     sendMessage(clientSocket, response);
 }
 
-void userScanner(const int time) {
+void userScanner() {
     while (true) {
-        // Bloqueamos el mutex para proteger la variable userSockets
-        std::lock_guard<std::mutex> lock(clientsMutex);
         // Recorremos la lista de sockets
-        for (const auto& [username, clientSocket] : userSockets) {
-            // Creamos un mensaje de respuesta
-            chat::Response response;
-            response.set_operation(chat::Operation::GET_USERS);
-            response.set_status_code(chat::StatusCode::OK);
-
-            chat::UserListResponse user_list;
-            user_list.set_type(chat::UserListType::ALL);
-            // Recorremos la lista de usuarios y agregamos los usuarios a la lista
-            for (const auto& [user, state] : usersState){
-                chat::User *newUser = user_list.add_users();
-                newUser->set_username(user);
-                newUser->set_status(state);
-            }
-
-            // Copiamos la lista de usuarios a la respuesta
-            response.mutable_user_list()->CopyFrom(user_list);
-
-            // Enviamos la respuesta a través del socket
-            if (!sendMessage(clientSocket, response)) {
-                std::cerr << "Error sending users list to client socket " << clientSocket << "\n";
-            }
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        for (const auto& [username, timer] : usersTiming) {
+            // Verificamos si el tiempo de inactividad es mayor al tiempo establecido
+            if (timer == waitTime) {
+                // Si el tiempo de inactividad es mayor, cambiamos el estado del usuario a OFFLINE
+                changeStatus(userSockets[username], chat::UserStatus::OFFLINE);
+                usersTiming[username] = timer + 1;
+            } else {
+                // Si el tiempo de inactividad no es mayor, incrementamos el tiempo de inactividad
+                usersTiming[username] = timer + 1;
+            }            
         }
     }
 }
@@ -271,6 +260,7 @@ void handleClient(int clientSocket, const std::string& clientIp) {
                     usersState.erase(username);
                     userSockets.erase(username);
                     ipsUsers.erase(username);
+                    usersTiming.erase(username);
                 }
             }
             close(clientSocket);
@@ -303,6 +293,7 @@ void handleClient(int clientSocket, const std::string& clientIp) {
                 ipsUsers[username] = clientIp;
                 usersState[username] = chat::UserStatus::ONLINE;
                 userSockets[username] = clientSocket;
+                usersTiming[username] = 0;
             }
             std::cout << "User registered: " << username << "\n";
 
@@ -330,6 +321,7 @@ void handleClient(int clientSocket, const std::string& clientIp) {
                 ipsUsers.erase(username);
                 usersState.erase(username);
                 userSockets.erase(username);
+                usersTiming.erase(username);
             }
             // Se imprime el username del usuario que se desregistro
             std::cout << "User unregistered: " << username << "\n";
@@ -343,6 +335,14 @@ void handleClient(int clientSocket, const std::string& clientIp) {
             close(clientSocket);
             break;
         } else if (request.operation() == chat::Operation::SEND_MESSAGE) {
+            if (usersTiming.find(username) != usersTiming.end()){
+                {
+                    // Bloqueamos el mutex para proteger las variables compartidas
+                    std::lock_guard<std::mutex> lock(clientsMutex);
+                    usersTiming[username] = 0;
+                }
+                changeStatus(clientSocket, chat::UserStatus::ONLINE);
+            }
             // Si se quiere enviar un mensaje se crea un response
             if (request.send_message().recipient() == "") {
                 // Si el mensaje no tiene un recipient, se envia en broadcast
@@ -397,6 +397,7 @@ void handleClient(int clientSocket, const std::string& clientIp) {
             usersState.erase(username);
             userSockets.erase(username);
             ipsUsers.erase(username);
+            usersTiming.erase(username);
         }
     }
 }
@@ -438,6 +439,10 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Server started. Listening on port 8080...\n";
 
+    // Se crea un hilo para recibir los mensajes del servidor
+    std::thread statusWatcher(userScanner);
+    statusWatcher.detach();
+
     // Se crea un loop infinito para aceptar conexiones de clientes
     while (true) {
         // Se acepta la conexión de un cliente
@@ -455,6 +460,12 @@ int main(int argc, char* argv[]) {
         }
         // Se crea un thread para manejar las request del cliente
         clientThreads.emplace_back(std::thread(handleClient, clientSocket, ipAddress));
+    }
+
+    // Se espera que el hilo de recepcion de mensajes termine
+    if (statusWatcher.joinable())
+    {
+        statusWatcher.join();
     }
 
     // Cuando se cierra, se espera que todos los threads terminen
