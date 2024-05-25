@@ -27,8 +27,8 @@ target_include_directories(protocol
 
 target_link_libraries(protocol
     ${PROTOBUF_LIBRARIES}
-    absl::log_internal_message
-    absl::log_internal_check_op
+    # absl::log_internal_message
+    # absl::log_internal_check_op
 )
 
 # Server source files
