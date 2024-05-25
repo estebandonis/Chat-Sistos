@@ -1,0 +1,5 @@
+/Users/estebandonis/Documents/Séptimo semestre/Sistemas Operativos/Proyecto/Chat-Sistos/build/CMakeFiles/protocol.dir
+/Users/estebandonis/Documents/Séptimo semestre/Sistemas Operativos/Proyecto/Chat-Sistos/build/CMakeFiles/server.dir
+/Users/estebandonis/Documents/Séptimo semestre/Sistemas Operativos/Proyecto/Chat-Sistos/build/CMakeFiles/client.dir
+/Users/estebandonis/Documents/Séptimo semestre/Sistemas Operativos/Proyecto/Chat-Sistos/build/CMakeFiles/edit_cache.dir
+/Users/estebandonis/Documents/Séptimo semestre/Sistemas Operativos/Proyecto/Chat-Sistos/build/CMakeFiles/rebuild_cache.dir
