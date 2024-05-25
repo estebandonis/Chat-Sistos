@@ -14,6 +14,10 @@ std::deque<std::string> messages; // Cola para ir guardando los mensajes broadca
 std::atomic<bool> receivingResponse{true}; // Variable que detemina si se sigue recibiendo responses del servidor
 std::unordered_map<std::string, std::deque<std::string>> privateMessages; // Mapa para guardar los mensajes privados
 std::mutex messagesMutex; // Mutex para evitar problemas de concurrencia en la cola de mensajes
+std::string currentStatus = "ONLINE"; // Variable para guardar el status actual del usuario
+std::string tempUserStatus;
+std::string tempMessage;
+std::string tempRecipient;
 
 /**
  * Escucha los responses del servidor
@@ -33,78 +37,89 @@ void messageReceiver(int clientSocket) {
         std::cerr << "There has been an error from the server\n";
         std::cerr << "Status code: " << response.status_code() << "\n";
         std::cerr << "Message: " << response.message() << "\n";
-      } 
-      // Se verifica si la operación son de tipo mensaje entrante
-      else if (response.operation() == chat::Operation::INCOMING_MESSAGE) {
-        // Se verifica que si exista un mensaje entrante
-        if (response.has_incoming_message()) {
-          // Se crea un string para guardar el mensaje
-          std::string message;
-          const auto &mensaje = response.incoming_message();
-          // Se verifica si el mensaje es de tipo broadcast
-          if (mensaje.type() == chat::MessageType::BROADCAST){
-            // Se guarda el mensaje en la variable message, con el tag de broadcast
-            std::string type = "Broadcast";
-            message = "<" + type + ">" + " [" + mensaje.sender() + "]" + ": " + mensaje.content();
-            // Se guarda el mensaje en la cola de mensajes
-            {
-              std::lock_guard<std::mutex> lock(messagesMutex);
-              messages.push_back(message);
-            }
-          } else {
-            // Se guarda el mensaje en la variable message, con el tag de direct
-            std::string type = "Direct";
-            message = "<" + type + ">" + " [" + mensaje.sender() + "]" + ": " + mensaje.content();
-            // Se guarda el mensaje en el mapa de mensajes privados, utilizando un mutex lock para evitar problemas de concurrencia
-            {
-              std::lock_guard<std::mutex> lock(messagesMutex);
-              privateMessages[mensaje.sender()].push_back(message);
+      } else {
+        // Se verifica si la operación son de tipo mensaje entrante
+        if (response.operation() == chat::Operation::INCOMING_MESSAGE) {
+          // Se verifica que si exista un mensaje entrante
+          if (response.has_incoming_message()) {
+            // Se crea un string para guardar el mensaje
+            std::string message;
+            const auto &mensaje = response.incoming_message();
+            // Se verifica si el mensaje es de tipo broadcast
+            if (mensaje.type() == chat::MessageType::BROADCAST){
+              // Se guarda el mensaje en la variable message, con el tag de broadcast
+              std::string type = "Broadcast";
+              message = "<" + type + ">" + " [" + mensaje.sender() + "]" + ": " + mensaje.content();
+              // Se guarda el mensaje en la cola de mensajes
+              {
+                std::lock_guard<std::mutex> lock(messagesMutex);
+                messages.push_back(message);
+              }
+            } else {
+              // Se guarda el mensaje en la variable message, con el tag de direct
+              std::string type = "Direct";
+              message = "<" + type + ">" + " [" + mensaje.sender() + "]" + ": " + mensaje.content();
+              // Se guarda el mensaje en el mapa de mensajes privados, utilizando un mutex lock para evitar problemas de concurrencia
+              {
+                std::lock_guard<std::mutex> lock(messagesMutex);
+                privateMessages[mensaje.sender()].push_back(message);
+              }
             }
           }
-        }
-      } 
-      // Si la operacion es de obtener usuarios
-      else if (response.operation() == chat::Operation::GET_USERS) {
-        // Se obtiene la lista de usuarios
-        const auto &user_list = response.user_list();
-        // Se verifica si la lista de usuarios es de tipo single
-        if (user_list.type() == chat::UserListType::SINGLE){
-          // Si es asi se obtiene el status del usuario, y se coloca de manera adecuada para su impresion
-          std::string tempStatus;
-          if (user_list.users(0).status() == chat::UserStatus::ONLINE){
-            tempStatus = "Online";
-          } else if (user_list.users(0).status() == chat::UserStatus::BUSY){
-            tempStatus = "Busy";
-          } else {
-            tempStatus = "Offline";
-          }
-          // Se imprime la informacion del usuario
-          std::cout << "User info: \n" << "Username: " + user_list.users(0).username() << "\n" << "Status: " << tempStatus << "\n";
-
         } 
-        // Si la lista de usuarios es de tipo all
-        else if (user_list.type() == chat::UserListType::ALL){
-          // Se imprime la cantidad de usuarios conectados, con sus respectivos status y nombres
-          std::cout << "Connected users: " << "\n";
-          for (const auto &user : response.user_list().users()) {
+        // Si la operacion es de obtener usuarios
+        else if (response.operation() == chat::Operation::GET_USERS) {
+          // Se obtiene la lista de usuarios
+          const auto &user_list = response.user_list();
+          // Se verifica si la lista de usuarios es de tipo single
+          if (user_list.type() == chat::UserListType::SINGLE){
+            // Si es asi se obtiene el status del usuario, y se coloca de manera adecuada para su impresion
             std::string tempStatus;
-            if (user.status() == chat::UserStatus::ONLINE){
+            if (user_list.users(0).status() == chat::UserStatus::ONLINE){
               tempStatus = "Online";
-            } else if (user.status() == chat::UserStatus::BUSY){
+            } else if (user_list.users(0).status() == chat::UserStatus::BUSY){
               tempStatus = "Busy";
             } else {
               tempStatus = "Offline";
             }
             // Se imprime la informacion del usuario
-            std::cout << "Username: " << user.username() << "\n" << "Status: " << tempStatus << "\n";
+            std::cout << "User info: \n" << "Username: " + user_list.users(0).username() << "\n" << "Status: " << tempStatus << "\n";
+
+          } 
+          // Si la lista de usuarios es de tipo all
+          else if (user_list.type() == chat::UserListType::ALL){
+            // Se imprime la cantidad de usuarios conectados, con sus respectivos status y nombres
+            std::cout << "Connected users: " << "\n";
+            for (const auto &user : response.user_list().users()) {
+              std::string tempStatus;
+              if (user.status() == chat::UserStatus::ONLINE){
+                tempStatus = "Online";
+              } else if (user.status() == chat::UserStatus::BUSY){
+                tempStatus = "Busy";
+              } else {
+                tempStatus = "Offline";
+              }
+              // Se imprime la informacion del usuario
+              std::cout << "Username: " << user.username() << "\n" << "Status: " << tempStatus << "\n";
+            }
+            std::cout << "\n";
           }
-          std::cout << "\n";
+        } 
+        // Si la operacion es de tipo update status
+        else if (response.operation() == chat::Operation::UPDATE_STATUS) {
+          // Se imprime el mensaje del servidor
+          std::cout << "Status updated to: " << tempUserStatus << "\n";
+          {
+            std::lock_guard<std::mutex> lock(messagesMutex);
+            currentStatus = tempUserStatus;
+          }
+          std::cout << response.message() << "\n";
+        } else if (response.operation() == chat::Operation::SEND_MESSAGE) {
+          {
+            std::lock_guard<std::mutex> lock(messagesMutex);
+            privateMessages[tempRecipient].push_back(tempMessage);
+          }
         }
-      } 
-      // Si la operacion es de tipo update status
-      else if (response.operation() == chat::Operation::UPDATE_STATUS) {
-        // Se imprime el mensaje del servidor
-        std::cout << response.message() << "\n";
       }
     }
   }
@@ -131,7 +146,7 @@ void DirectMessagesPrinter(){
   std::cout << "Direct Messages: " << "\n";
   std::cout << "***********************************" << "\n";
   for (const auto& [sender, messages] : privateMessages) {
-    std::cout << "Messages from " << sender << ": " << "\n";
+    std::cout << "Chat con " << sender << ": " << "\n";
     for (const auto& message : messages) {
       std::cout << message << "\n";
     }
@@ -223,6 +238,11 @@ void sendMessageDirect(int clientSocket, const std::string& userName) {
 
   // Se envia el request al servidor
   sendMessage(clientSocket, request);
+
+  // Se guarda el mensaje en el mapa de mensajes privados
+  std::string type = "Direct";
+  tempMessage = "<" + type + ">" + " [" + userName + "]" + ": " + mensaje;
+  tempRecipient = recipient;
 }
 
 /**
@@ -276,10 +296,13 @@ void changeStatus(int clientSocket, int status) {
   // Se traduce la eleccion del usuario con el status del usuario
   if (status == 0){
     status_request->set_new_status(chat::UserStatus::ONLINE);
+    tempUserStatus = "ONLINE";
   } else if (status == 1){
     status_request->set_new_status(chat::UserStatus::BUSY);
+    tempUserStatus = "BUSY";
   } else {
     status_request->set_new_status(chat::UserStatus::OFFLINE);
+    tempUserStatus = "OFFLINE";
   }
 
   sendMessage(clientSocket, request);
@@ -374,6 +397,7 @@ int main(int argc, char* argv[]) {
   while (choice != 9)
   {
     // Se imprime el menu de opciones
+    std::cout << "\nUsername: " << userName << "\nStatus: " << currentStatus << "\n";
     std::cout << "Ingrese un número basándose en las opciones siguientes" << "\n";
     std::cout << "(1) Chatear con todos los usuarios" << "\n";
     std::cout << "(2) Mostrar mensajes Broadcast" << "\n";

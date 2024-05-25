@@ -215,6 +215,37 @@ void changeStatus (int clientSocket, chat::UserStatus status){
     sendMessage(clientSocket, response);
 }
 
+void userScanner(const int time) {
+    while (true) {
+        // Bloqueamos el mutex para proteger la variable userSockets
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        // Recorremos la lista de sockets
+        for (const auto& [username, clientSocket] : userSockets) {
+            // Creamos un mensaje de respuesta
+            chat::Response response;
+            response.set_operation(chat::Operation::GET_USERS);
+            response.set_status_code(chat::StatusCode::OK);
+
+            chat::UserListResponse user_list;
+            user_list.set_type(chat::UserListType::ALL);
+            // Recorremos la lista de usuarios y agregamos los usuarios a la lista
+            for (const auto& [user, state] : usersState){
+                chat::User *newUser = user_list.add_users();
+                newUser->set_username(user);
+                newUser->set_status(state);
+            }
+
+            // Copiamos la lista de usuarios a la respuesta
+            response.mutable_user_list()->CopyFrom(user_list);
+
+            // Enviamos la respuesta a través del socket
+            if (!sendMessage(clientSocket, response)) {
+                std::cerr << "Error sending users list to client socket " << clientSocket << "\n";
+            }
+        }
+    }
+}
+
 /**
  * Maneja los requests de los clientes
  * 
@@ -352,6 +383,9 @@ void handleClient(int clientSocket, const std::string& clientIp) {
             // Se envia con un status code de Bad Request
             response.set_status_code(chat::StatusCode::BAD_REQUEST);
             response.set_message("Unknown operation");
+            if (!sendMessage(clientSocket, response)) {
+                std::cerr << "Error sending response\n";
+            }
         }
     }
     // Si 
