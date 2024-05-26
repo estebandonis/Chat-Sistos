@@ -241,7 +241,7 @@ void userScanner() {
  * @param clientSocket Socket del cliente
  * @param clientIp IP del cliente
  */
-void handleClient(int clientSocket, const std::string& clientIp) {
+void handleClient(int clientSocket) {
     // Se guarda el username del cliente
     std::string username;
     // Se crea un loop infinito para recibir requests del socket del cliente
@@ -259,7 +259,7 @@ void handleClient(int clientSocket, const std::string& clientIp) {
                 if (userSockets.find(username) != userSockets.end()) {
                     usersState.erase(username);
                     userSockets.erase(username);
-                    ipsUsers.erase(username);
+                    // ipsUsers.erase(username);
                     usersTiming.erase(username);
                 }
             }
@@ -290,7 +290,7 @@ void handleClient(int clientSocket, const std::string& clientIp) {
                     break;
                 }
                 // Si no existe, se agrega el username a la lista de usuarios y se guarda su ip, su socket y su estado
-                ipsUsers[username] = clientIp;
+                // ipsUsers[username] = clientIp;
                 usersState[username] = chat::UserStatus::ONLINE;
                 userSockets[username] = clientSocket;
                 usersTiming[username] = 0;
@@ -318,7 +318,7 @@ void handleClient(int clientSocket, const std::string& clientIp) {
             {
                 // Se bloquea el mutex para proteger la variable usersState
                 std::lock_guard<std::mutex> lock(clientsMutex);
-                ipsUsers.erase(username);
+                // ipsUsers.erase(username);
                 usersState.erase(username);
                 userSockets.erase(username);
                 usersTiming.erase(username);
@@ -396,7 +396,7 @@ void handleClient(int clientSocket, const std::string& clientIp) {
         if (userSockets.find(username) != userSockets.end()) {
             usersState.erase(username);
             userSockets.erase(username);
-            ipsUsers.erase(username);
+            // ipsUsers.erase(username);
             usersTiming.erase(username);
         }
     }
@@ -449,8 +449,8 @@ int main(int argc, char* argv[]) {
         sockaddr_in clientAddress{};
         socklen_t clientAddressLength = sizeof(clientAddress);
         // Se obtiene la IP del cliente
-        std::string ipAddress = inet_ntoa(clientAddress.sin_addr);
-        std::cout << "Client IP: " << ipAddress << "\n";
+        // std::string ipAddress = inet_ntoa(clientAddress.sin_addr);
+        // std::cout << "Client IP: " << ipAddress << "\n";
         // Se crea un socket para el cliente
         int clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddress, &clientAddressLength);
         // Se verifica si se aceptó la conexión correctamente
@@ -458,8 +458,16 @@ int main(int argc, char* argv[]) {
             std::cerr << "Error accepting client connection: " << strerror(errno) << "\n";
             continue;
         }
+
+        if (getpeername(clientSocket, (struct sockaddr*)&clientAddress, &clientAddressLength) == -1) {
+            std::cerr << "Error getting client IP: " << strerror(errno) << "\n";
+        } else {
+            char clientIP[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(clientAddress.sin_addr), clientIP, INET_ADDRSTRLEN);
+            std::cout << "Client IP: " << clientIP << "\n";
+        }
         // Se crea un thread para manejar las request del cliente
-        clientThreads.emplace_back(std::thread(handleClient, clientSocket, ipAddress));
+        clientThreads.emplace_back(std::thread(handleClient, clientSocket));
     }
 
     // Se espera que el hilo de recepcion de mensajes termine
