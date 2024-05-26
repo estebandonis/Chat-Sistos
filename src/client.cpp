@@ -317,6 +317,25 @@ void changeStatus(int clientSocket, int status) {
 }
 
 /**
+ * Imprime la explicacion de las diferentes opciones del cliente
+ */
+void printHelp(){
+  std::cout << "*****************************************************************************************************************" << "\n";
+  std::cout << "Ayuda" << "\n";
+  std::cout << "*****************************************************************************************************************" << "\n";
+  std::cout << "Opción 1: Envia un mensaje a todos los usuarios conectados al servidor" << "\n";
+  std::cout << "Opción 2: Muestra todos los mensajes enviados en el canal de broadcast" << "\n";
+  std::cout << "Opción 3: Permite empezar una conversacion privada con un usuario conectado" << "\n";
+  std::cout << "Opción 4: Muestra los mensajes Directos que tenemos con otros usuarios conectados" << "\n";
+  std::cout << "Opción 5: Permite cambiar nuestro status para ser mostrado en el servidor" << "\n";
+  std::cout << "Opción 6: Nos permite visualizar los usuarios conectados actualmente al servidor y sus correspondientes estados" << "\n";
+  std::cout << "Opción 7: Despliega el nombre, la dirección IP y el estado de un usuario en específico" << "\n";
+  std::cout << "Opción 8: Permite desplegar el menu de ayuda que está visualizando actualmente" << "\n";
+  std::cout << "Opción 9: Permite salir del servidor" << "\n";
+  std::cout << "*****************************************************************************************************************" << "\n";
+}
+
+/**
  * Función principal del cliente.
  *
  * @param argc Cantidad de argumentos de la línea de comandos.
@@ -375,7 +394,7 @@ int main(int argc, char* argv[]) {
   // Si recibimos un mensaje del servidor
   if (receiveMessage(clientSocket, response)){
     // Imprimimos el mensaje recibido
-    std::cout << "Received message from server - Type: " << response.message() << std::endl;
+    std::cout << "Received message from server - Type: " << response.message() << "\n";
     // Si el status code de la respuesta es diferente de OK
     if (response.status_code() == chat::StatusCode::INTERNAL_SERVER_ERROR){
       // Se imprime un mensaje de error
@@ -393,7 +412,7 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  std::cout << "Regreso del servidor: " << response.message();
+  std::cout << "Regreso del servidor: " << response.message() << "\n";
 
   // Se crea un hilo para recibir los mensajes del servidor
   std::thread receiver(messageReceiver, clientSocket);
@@ -405,7 +424,7 @@ int main(int argc, char* argv[]) {
   while (choice != 9)
   {
     // Se imprime el menu de opciones
-    std::cout << "\nUsername: " << userName << "\nStatus: " << currentStatus << "\n";
+    std::cout << "Username: " << userName << "\nStatus: " << currentStatus << "\n";
     std::cout << "Ingrese un número basándose en las opciones siguientes" << "\n";
     std::cout << "(1) Chatear con todos los usuarios" << "\n";
     std::cout << "(2) Mostrar mensajes Broadcast" << "\n";
@@ -459,7 +478,7 @@ int main(int argc, char* argv[]) {
         break;
     case 8:
         // En caso de que la eleccion sea 8, se imprime la ayuda
-        std::cout << "Ayuda" << "\n";
+        printHelp();
         break;
     case 9:
         // En caso de que la eleccion sea 9, se desregistra al usuario

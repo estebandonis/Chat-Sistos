@@ -49,8 +49,6 @@ add_executable(client src/client.cpp)
 target_include_directories(client
     PRIVATE ${PROJECT_SOURCE_DIR}/include
     PUBLIC ${PROJECT_SOURCE_DIR}/src
-    # PUBLIC /opt/homebrew/Cellar/protobuf/26.1/include
-    # PUBLIC /opt/homebrew/Cellar/abseil/20240116.2/include
 )
 
 target_link_libraries(client
