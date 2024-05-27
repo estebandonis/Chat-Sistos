@@ -20,7 +20,7 @@ std::unordered_map<std::string, int> userSockets; // Variable donde almacenamos 
 std::unordered_map<std::string, std::string> ipsUsers; // Variable donde almacenamos las ips de los usuarios
 std::mutex clientsMutex; // Mutex para proteger las variables compartidas
 std::unordered_map<std::string, int> usersTiming; // Variable donde almacenamos el tiempo de inactividad de los usuarios
-int waitTime = 20; // Variable donde se guarda el tiempo de inactividad predeterminado
+int waitTime = 60; // Variable donde se guarda el tiempo de inactividad predeterminado
 
 /**
  * Funcion que maneja el envío de mensajes broadcast a través de un socket

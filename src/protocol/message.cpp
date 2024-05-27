@@ -11,18 +11,18 @@ bool sendMessage(int socket, const google::protobuf::Message& message) {
     // Serialize the message to a string
     std::string serializedMessage = message.SerializeAsString();
 
-    // Get the size of the serialized message
-    uint32_t messageSize = htonl(serializedMessage.size());
-
-    // Send the size of the message
-    ssize_t bytesSent = send(socket, &messageSize, sizeof(messageSize), 0);
-    if (bytesSent != sizeof(messageSize)) {
+    if (serializedMessage.size() > BufferSize) {
+        std::cerr << "El mensaje es muy grande" << std::endl;
         return false;
     }
 
-    // Send the serialized message
-    bytesSent = send(socket, serializedMessage.data(), serializedMessage.size(), 0);
-    if (bytesSent != serializedMessage.size()) {
+    // Send the size of the message
+    ssize_t bytesSent = send(socket, serializedMessage.data(), serializedMessage.size(), 0);
+    if (bytesSent < 0) {
+        std::cerr << "Error al enviar el mensaje" << std::endl;
+        return false;
+    } else if (bytesSent < serializedMessage.size()) {
+        std::cerr << "No se envio toda la data" << std::endl;
         return false;
     }
 
@@ -37,26 +37,17 @@ bool sendMessage(int socket, const google::protobuf::Message& message) {
 */
 bool receiveMessage(int socket, google::protobuf::Message& message) {
     // Receive the size of the message
-    uint32_t messageSize;
-    ssize_t bytesRead = recv(socket, &messageSize, sizeof(messageSize), MSG_WAITALL);
-    if (bytesRead != sizeof(messageSize)) {
-        return false;
-    }
+    std::vector<char> buffer(BufferSize);
 
-    // Convert the size of the message to host byte order
-    messageSize = ntohl(messageSize);
-
-    // Prepare a buffer to receive the serialized message
-    std::vector<uint8_t> buffer(messageSize);
-
-    // Receive the serialized message
-    bytesRead = recv(socket, buffer.data(), messageSize, MSG_WAITALL);
-    if (bytesRead != messageSize) {
+    ssize_t bytesRead = recv(socket, buffer.data(), buffer.size(), 0);
+    if (bytesRead < 0) {
+        std::cerr << "Error al recibir el mensaje" << std::endl;
         return false;
     }
 
     // Parse the received message using protobuf
-    if (!message.ParseFromArray(buffer.data(), messageSize)) {
+    if (!message.ParseFromArray(buffer.data(), bytesRead)) {
+        std::cerr << "Error al parsear el mensaje" << std::endl;
         return false;
     }
 

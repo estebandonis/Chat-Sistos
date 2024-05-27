@@ -10,6 +10,9 @@
 #include <netinet/in.h>              // For htonl, ntohl
 #include <google/protobuf/message.h> // For Google Protobuf
 
+// Indicating the static size of the buffer
+constexpr size_t BufferSize = 64 * 1024;
+
 /**
  * Funcion para manejar el envio de mensajes entre el servidor y el cliente
  * 
