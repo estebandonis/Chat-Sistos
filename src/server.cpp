@@ -290,6 +290,8 @@ void handleClient(int clientSocket, std::string clientIp) {
                     break;
                 }
                 for (const auto& [user, Ip] : ipsUsers) {
+                    std::cout << "User: " << user << " IP: " << Ip << "\n";
+                    std::cout << "Client IP: " << clientIp << "\n";
                     if (Ip == clientIp) {
                         std::cout << "Encontramos un cliente con esta IP\n";
                         response.set_message("Ya existe un usuario registrado con esta IP");
