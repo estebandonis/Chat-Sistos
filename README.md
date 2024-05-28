@@ -79,3 +79,7 @@ y el puerto que se está utilizando para recibir requests:
 | --- | --- |
 | IDE | <img src="https://img.shields.io/badge/Visual_Studio_Code-007ACC.svg?style=for-the-badge&logo=Visual-Studio-Code&logoColor=white"/> |
 | Lenguaje | <img src="https://img.shields.io/badge/C++-00599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white"/> |
+
+## Investigación Realizada
+
+[Documento con Investigación]()[Proyecto Chat.pdf](https://github.com/estebandonis/Chat-Sistos/files/15473157/Proyecto.Chat.pdf)
