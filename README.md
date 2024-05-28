@@ -82,4 +82,4 @@ y el puerto que se está utilizando para recibir requests:
 
 ## Investigación Realizada
 
-[Documento con Investigación]()[Proyecto Chat.pdf](https://github.com/estebandonis/Chat-Sistos/files/15473157/Proyecto.Chat.pdf)
+[Documento con Investigación](./Proyecto.Chat.pdf)
