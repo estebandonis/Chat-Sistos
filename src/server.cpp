@@ -221,6 +221,9 @@ void changeStatus (int clientSocket, chat::UserStatus status, int automatic = 0)
     sendMessage(clientSocket, response);
 }
 
+/**
+ * Funcion que maneja el tiempo de inactividad de los usuarios
+ */
 void userScanner() {
     while (true) {
         // Recorremos la lista de sockets
@@ -422,6 +425,12 @@ void handleClient(int clientSocket, std::string clientIp) {
     }
 }
 
+/**
+ * Funcion principal del servidor
+ * 
+ * @param argc Cantidad de argumentos
+ * @param argv Argumentos
+ */
 int main(int argc, char* argv[]) {
     // Se verifica que se haya ingresado la IP del servidor
     if (argc != 2) {
