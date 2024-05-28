@@ -189,7 +189,7 @@ void returnUserInfo(int clientSocket, const std::string& username) {
  * @param clientSocket Socket del cliente a cambiar el estado
  * @param status Nuevo estado del usuario
  */
-void changeStatus (int clientSocket, chat::UserStatus status){
+void changeStatus (int clientSocket, chat::UserStatus status, int automatic = 0){
     {
         // Bloqueamos el mutex para proteger la variable usersState
         std::lock_guard<std::mutex> lock(clientsMutex);
@@ -211,7 +211,11 @@ void changeStatus (int clientSocket, chat::UserStatus status){
     response.set_operation(chat::Operation::UPDATE_STATUS);
     response.set_status_code(chat::StatusCode::OK);
     // Mencionamos que el update fue exitoso
-    response.set_message("Status updated successfully");
+    if (automatic == 1) {
+        response.set_message("Status actualizado automáticamente por el server");
+    } else { 
+        response.set_message("Se actualizó el estado del usuario exitosamente");
+    }
 
     // Enviamos la respuesta a través del socket
     sendMessage(clientSocket, response);
@@ -225,7 +229,7 @@ void userScanner() {
             // Verificamos si el tiempo de inactividad es mayor al tiempo establecido
             if (timer == waitTime) {
                 // Si el tiempo de inactividad es mayor, cambiamos el estado del usuario a OFFLINE
-                changeStatus(userSockets[username], chat::UserStatus::OFFLINE);
+                changeStatus(userSockets[username], chat::UserStatus::OFFLINE, 1);
                 usersTiming[username] = timer + 1;
             } else {
                 // Si el tiempo de inactividad no es mayor, incrementamos el tiempo de inactividad
@@ -357,7 +361,7 @@ void handleClient(int clientSocket, std::string clientIp) {
                     std::lock_guard<std::mutex> lock(clientsMutex);
                     usersTiming[username] = 0;
                 }
-                changeStatus(clientSocket, chat::UserStatus::ONLINE);
+                changeStatus(clientSocket, chat::UserStatus::ONLINE, 1);
             }
             // Si se quiere enviar un mensaje se crea un response
             if (request.send_message().recipient() == "") {
